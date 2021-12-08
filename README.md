@@ -1,5 +1,5 @@
-[![Crates.io](https://img.shields.io/crates/v/idx.svg)](https://crates.io/crates/idx)
-[![Documentation](https://docs.rs/idx/badge.svg)](https://docs.rs/idx)
+[![Crates.io](https://img.shields.io/crates/v/idx-rs.svg)](https://crates.io/crates/idx-rs)
+[![Documentation](https://docs.rs/idx-rs/badge.svg)](https://docs.rs/idx-rs)
 
 ## License
 
