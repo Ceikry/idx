@@ -5,7 +5,7 @@ authors = ["Ceikry <ironceikry@gmail.com>"]
 description = "A fast and efficient library for working with IDX-formatted RuneScape caches."
 homepage = "https://github.com/ceikry/idx"
 repository = "https://github.com/ceikry/idx"
-keywords = ["idx", "runescape", "runescape cache"]
+keywords = ["idx", "runescape", "rs", "cache"]
 license = "MIT or Apache-2.0"
 edition = "2018"
 
