@@ -1,0 +1,20 @@
+extern crate idx;
+use std::sync::{Arc, Mutex};
+
+use idx::*;
+
+#[test]
+fn test_load_cache() {
+    if let Some(mut _cache) = Cache::from_path("test_cache"){
+        let cache = Arc::from(Mutex::from(_cache));
+        let mut file_provider = FileProvider::from(cache);
+
+        let whip_id = 4152 as u32;
+        let whip_archive = file_provider.index(19).archive(&(whip_id >> 8));
+
+        let whip_data = whip_archive.request(&(whip_id & 0xff));
+
+        println!("{:?}", whip_data.to_bytes())
+    }
+}
+

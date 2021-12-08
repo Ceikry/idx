@@ -1,0 +1,14 @@
+[package]
+name = "idx"
+version = "0.8.0"
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+bzip2 = "0.4"
+inflate = "0.4"
+databuffer = "1"
+
+[lib]
+name = "idx"
