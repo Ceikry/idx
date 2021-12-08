@@ -1,5 +1,5 @@
 [package]
-name = "idx"
+name = "idx-rs"
 version = "0.8.0"
 authors = ["Ceikry <ironceikry@gmail.com>"]
 description = "A fast and efficient library for working with IDX-formatted RuneScape caches."
