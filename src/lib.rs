@@ -174,6 +174,18 @@ impl CacheIndex {
             }
         }
     }
+
+    pub fn get_total_files(&mut self) -> u32 {
+        self.container_info.container_indices.sort();
+
+        let last_archive_id = self.container_info.container_indices.last().unwrap().clone();
+        let last_archive = self.container_info.containers.get(&last_archive_id).unwrap();
+
+        let last_archive_file_amount = last_archive.file_indices.len();
+        let other_file_amounts = (self.container_info.container_indices.len() - 1) * 256;
+        
+        return (last_archive_file_amount + other_file_amounts) as u32;
+    }
 }
 
 pub struct IdxContainerInfo {
