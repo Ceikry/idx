@@ -18,3 +18,11 @@ fn test_load_cache() {
     }
 }
 
+#[test]
+fn test_file_amounts() {
+    let mut cache = Cache::from_path("test_cache").unwrap();
+    let index = cache.index(19).unwrap();
+
+    println!("{}", index.get_total_files());
+}
+
