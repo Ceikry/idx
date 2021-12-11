@@ -13,6 +13,83 @@ pub trait DefParser {
     fn parse_buff(buffer: DataBuffer) -> Self;
 }
 
+/**
+  The [`DefProvider`] is going to be what you'll primarily use to implement definition decoders and things along those lines.
+
+  You will use the [`DefProvider::with(cache, index)`] method to construct a definition provider, along with your definition type.
+
+  Let's say, for example, we had the below definition:
+
+  ```ignore
+  #[derive(Default)]
+  struct DummyDefinition {
+      dummy_int: u32,
+      dummy_str: String
+  }
+  ```
+
+  Which resides in index 1. You would implement your decoder:
+
+  ```ignore
+  impl DefParser for DummyDefinition {
+    fn parse_buff(buffer: DataBuffer) -> Self {
+        let mut def = DummyDefinition::default();
+
+        let opcode: u8;
+
+        loop {
+            opcode = buffer.read_u8();
+
+            match opcode {
+                0 -> break,
+                1 -> def.dummy_int = buffer.read_u32(),
+                2 -> def.dummy_str = buffer.read_ntstr()
+            }
+        }
+
+        return def;
+    }
+  }
+  ```
+
+  You would then create a definition provider like so: 
+
+  ```ignore
+  use idx::*;
+  use idx::util::*;
+  use std::sync::{Arc,Mutex};
+
+  let cache = Arc::from(Mutex::from(Cache::from_path("test_cache")));
+
+  let dummy_def_provider = DefProvider::<DummyDefinition>::with(cache, 1);
+
+  let definition = dummy_def_provider.get_def(&3, &1); //returns the parsed definition from file 1 of archive 3.
+
+  ```
+
+  It is additionally recommended to make some additional trait that can turn, for example, and item ID into the appropriate archive and file IDs
+
+  I would also recommend using [`ContainerIdProvider`] as the type to be passed for the ID, as it can accept both u32 and String. But this is up to you.
+
+  ```ignore
+  pub trait IdFetch {
+      type DefType;
+
+      fn for_id(id: u32) -> &Self::DefType;
+  }
+
+  impl IdFetch for DefProvider<DummyDefinition> {
+      type DefType = DummyDefinition;
+
+      fn for_id(id: u32) -> &DummyDefinition {
+          let archive = id >> 8;
+          let file = id & 0xff;
+
+          return self.get_def(&archive, &file, id);
+      }
+  }
+  ```
+ */
 pub struct DefProvider<T> {
     pub cache: Arc<Mutex<Cache>>,
     pub index: u32,
@@ -51,6 +128,27 @@ impl <T: DefParser> DefProvider<T> {
     }
 }
 
+/**
+  The FileProvider is the primary method of retrieving raw data from the cache. 
+
+  In order to function correctly, an index, archive and file ID must be supplied.
+
+  The index is type [`usize`], and the archive and file ID can either be a u32 reference (&[`u32`]) or a String reference (&[`String`]).
+  
+  ```no_run
+  use std::{sync::{Arc, Mutex}};
+  use idx::util::FileProvider;
+  use idx::Cache;
+
+  let cache = Arc::from(Mutex::from(Cache::from_path("test_cache").unwrap()));
+  let mut data_provider = FileProvider::from(cache);
+  
+  data_provider.index(19).archive(&6);
+  let data = data_provider.request(&17); //Returns the raw data for file 17 in archive 6 of index 19.
+
+  assert_ne!(0, data.len());
+  ```
+*/
 pub struct FileProvider {
     cache: Arc<Mutex<Cache>>,
     index: u32,

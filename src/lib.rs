@@ -6,6 +6,23 @@ pub mod util;
 
 type IdxFileOpt<'a> = Option<&'a mut CacheIndex>;
 
+/**
+  The Cache struct is the top-level representation of the cache itself,
+  all data within the cache is accessed via this struct.
+  It is highly recommended (and in fact necessary for DefProvider) 
+  that the cache is wrapped in a Arc'd Mutex, like so:
+  ```ignore
+  let cache = Arc::from(Mutex::from(Cache::from_path("test_cache")));
+  ```
+
+  Once the Cache is creating using its [`Cache::from_path("/path/to/cache")`] method,
+  all archives and file containers will be populated, though
+  none of the data will be read for individual files.
+
+  For a recommended method of retrieving raw file data from the cache, see [`util::FileProvider`].
+  
+  For tips on implementing a full-blown Definition Provider, see [`util::DefProvider`].
+ */
 pub struct Cache {
     pub data_file: Arc<Mutex<File>>,
     indices: HashMap<u8, CacheIndex>
