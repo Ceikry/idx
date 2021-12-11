@@ -1,5 +1,6 @@
 [![Crates.io](https://img.shields.io/crates/v/idx-rs.svg)](https://crates.io/crates/idx-rs)
 [![Documentation](https://docs.rs/idx-rs/badge.svg)](https://docs.rs/idx-rs)
+[![Discord Chat](https://img.shields.io/discord/918184459315056683.svg)](https://discord.gg/pMnw9H2Art)  
 
 ![idx-github](https://user-images.githubusercontent.com/61421472/145660771-6eb75b4c-10f0-4cfc-b6e1-ca36d1d16f23.png)
 *This image proudly made in GIMP*
