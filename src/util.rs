@@ -257,8 +257,6 @@ impl FileProvider {
         let container_data = self.get_requested_container_data();
         let file_info = self.get_container_file_info();
 
-        println!("FILE NUM: {}", file_info.len());
-
         let mut read_pos = container_data.len() - 1;
         let num_loops = container_data[read_pos];
 
@@ -288,7 +286,6 @@ impl FileProvider {
                 None => return
             }
         } else {
-            println!("{} - {} - {}", buffer.len(), num_loops, read_pos);
             let mut file_sizes = Vec::<i32>::new();
             for _ in 0..(num_loops as usize) {
                 let mut offset = 0 as i32;
