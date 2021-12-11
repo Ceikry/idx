@@ -2,6 +2,7 @@
 [![Documentation](https://docs.rs/idx-rs/badge.svg)](https://docs.rs/idx-rs)
 
 ![idx-github](https://user-images.githubusercontent.com/61421472/145660771-6eb75b4c-10f0-4cfc-b6e1-ca36d1d16f23.png)
+*This image proudly made in GIMP*
 
 ## License
 
