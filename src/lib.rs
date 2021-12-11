@@ -127,11 +127,18 @@ impl CacheIndex {
         }
     }
 
+    fn get_container_by_name_hash(&mut self, hash: u32) -> u32 {
+        match self.container_info.containers.iter().filter(|(_,c)| c.name_hash == hash).last() {
+            Some((c,_)) => *c,
+            None => hash
+        }
+    }
+
     fn container_data(&mut self, mut data_file: MutexGuard<BufReader<File>>, archive_id: u32) -> Option<Vec<u8>> {
         let mut file_buff: [u8; 520] = [0; 520];
         let mut data: [u8;6] = [0; 6];
 
-        if archive_id <= 1 {
+        if archive_id <= 1 || self.last_archive_id == 0 {
             let _ = self.file.seek(SeekFrom::Start(6 * archive_id as u64));
         } else if self.last_archive_id != archive_id - 1 {
             let seek_offset = 6 * (archive_id as i64 - (self.last_archive_id as i64 + 1));

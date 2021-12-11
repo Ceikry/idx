@@ -1,7 +1,7 @@
 use std::{sync::{Arc, Mutex}, collections::HashMap, fs::File, io::{Read, BufReader}};
 use bzip2::bufread::BzDecoder;
 use databuffer::DataBuffer;
-use crate::Cache;
+use crate::{Cache, CacheIndex};
 
 type ParserFun<T> = fn(DataBuffer) -> T;
 
@@ -91,7 +91,7 @@ pub trait DefParser {
   ```
  */
 pub struct DefProvider<T> {
-    pub cache: Arc<Mutex<Cache>>,
+    pub file_provider: FileProvider,
     pub index: u32,
     pub parser: Option<ParserFun<T>>,
     def_cache: HashMap<u32, T>
@@ -100,7 +100,7 @@ pub struct DefProvider<T> {
 impl <T: DefParser> DefProvider<T> {
     pub fn with(cache: &Arc<Mutex<Cache>>, index: u32) -> Self {
         Self {
-            cache: cache.clone(),
+            file_provider: FileProvider::from(cache),
             index,
             parser: Some(T::parse_buff),
             def_cache: HashMap::new()
@@ -112,11 +112,10 @@ impl <T: DefParser> DefProvider<T> {
             return self.def_cache.get(&id).unwrap();
         }
 
-        let mut data_provider = FileProvider::from(self.cache.clone());
+        self.file_provider.index(self.index);
+        self.file_provider.archive(archive);
 
-        data_provider.index(self.index);
-        data_provider.archive(&archive.get_id());
-        let data = data_provider.request(&file.get_id());
+        let data = self.file_provider.request(file);
 
         let parse = self.parser.unwrap();
 
@@ -141,7 +140,7 @@ impl <T: DefParser> DefProvider<T> {
   use idx::Cache;
 
   let cache = Arc::from(Mutex::from(Cache::from_path("test_cache").unwrap()));
-  let mut data_provider = FileProvider::from(cache);
+  let mut data_provider = FileProvider::from(&cache);
   
   data_provider.index(19).archive(&6);
   let data = data_provider.request(&17); //Returns the raw data for file 17 in archive 6 of index 19.
@@ -158,7 +157,7 @@ pub struct FileProvider {
 }
 
 impl FileProvider {
-    pub fn from(cache: Arc<Mutex<Cache>>) -> Self {
+    pub fn from(cache: &Arc<Mutex<Cache>>) -> Self {
         let dfile = match cache.lock() {
             Ok(n) => n.data_file.clone(),
 
@@ -168,7 +167,7 @@ impl FileProvider {
         };
 
         Self {
-            cache,
+            cache: cache.clone(),
             index: 0,
             archive: 0,
             data_file: dfile,
@@ -182,7 +181,17 @@ impl FileProvider {
     }
 
     pub fn archive(&mut self, archive: &dyn ContainerIdProvider) -> &mut Self {
-        self.archive = archive.get_id();
+        if self.index == 0 {
+            self.archive = archive.get_id(None);
+            println!("WARNING: archive was set before the index was! IDX: {}, ARCHIVE: {}. This will break archive access via name hashes!", self.index, self.archive);
+            return self
+        }
+
+        {
+            let mut _cache = self.cache.lock().unwrap();
+            let index = _cache.index(self.index as usize).unwrap();
+            self.archive = archive.get_id(Some(index));
+        }
         self
     }
 
@@ -191,7 +200,7 @@ impl FileProvider {
     }
 
     pub fn request(&mut self, file: &dyn ContainerIdProvider) -> DataBuffer {
-        let file_id = file.get_id();
+        let file_id = file.get_id(None);
 
         let file_data = match self.cache.lock() {
             Ok(mut n) => match n.index(self.index as usize) {
@@ -356,17 +365,23 @@ impl FileProvider {
 }
 
 pub trait ContainerIdProvider {
-    fn get_id(&self) -> u32;
+    fn get_id(&self, _: Option<&mut CacheIndex>) -> u32;
 }
 
-impl ContainerIdProvider for str {
-    fn get_id(&self) -> u32 {
-        get_name_hash(&self)
+impl ContainerIdProvider for String {
+    fn get_id(&self, idx: Option<&mut CacheIndex>) -> u32 {
+        let hash = get_name_hash(&self);
+
+        if let Some(index) = idx {
+            index.get_container_by_name_hash(hash)
+        } else {
+            hash
+        }
     }
 }
 
 impl ContainerIdProvider for u32 {
-    fn get_id(&self) -> u32 {
+    fn get_id(&self, _: Option<&mut CacheIndex>) -> u32 {
         *self
     }
 }
