@@ -92,7 +92,7 @@ impl Cache {
         }
 
         Some(Self {
-            data_file: data_file,
+            data_file,
             indices
         })
     }
@@ -178,10 +178,10 @@ impl CacheIndex {
                         return None;
                     }
 
-                    for i in 0..data_to_read {
-                        container_data.push(file_buff[(8 + i as usize)]);
-                        data_read_count += 1;
-                    }
+                    let upper_bound = 8 + data_to_read as usize;
+
+                    container_data.extend_from_slice(&file_buff[8..upper_bound]);
+                    data_read_count += data_to_read;
 
                     part += 1;
                     sector = next_sector as i32;
@@ -272,7 +272,6 @@ impl IdxContainerInfo {
 
             let mut file_hashes: HashMap<u32, [u8;64]> = HashMap::new();
 
-            //NOTE: This is not handled correctly.
             if whirlpool {
                 for i in 0..(num_indices as usize) {
                     let mut buf: [u8; 64] = [0; 64];
@@ -310,7 +309,6 @@ impl IdxContainerInfo {
                 }
             }
 
-            //NOTE: This is not handled correctly. I didn't see the need to handle this correctly when initially written.
             if whirlpool {
                 for container_index in 0..container_indices.len() {
                     for file_index in 0..containers.get(&(container_index as u32)).unwrap().file_containers.len() {
