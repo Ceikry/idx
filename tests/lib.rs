@@ -2,6 +2,7 @@ extern crate idx;
 use std::sync::{Arc, Mutex};
 
 use idx::*;
+use idx::util::*;
 
 #[test]
 fn test_load_cache() {
