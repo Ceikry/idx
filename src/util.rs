@@ -51,12 +51,6 @@ impl <T: DefParser> DefProvider<T> {
     }
 }
 
-pub trait IdFetch {
-    type DefType;
-
-    fn for_id(&mut self, id: u32) -> &Self::DefType;
-}
-
 pub struct FileProvider {
     cache: Arc<Mutex<Cache>>,
     index: u32,
