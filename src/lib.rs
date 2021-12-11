@@ -58,7 +58,7 @@ impl Cache {
             }
         };
 
-        let num_files = info_file.seek(SeekFrom::End(0)).unwrap() / 6;
+        let num_files = info_file.metadata().unwrap().len() / 6;
         let _ = info_file.seek(SeekFrom::Start(0));
 
         let mut info = CacheIndex::from(255, 500000, BufReader::new(info_file), IdxContainerInfo::new());
@@ -245,7 +245,7 @@ impl IdxContainerInfo {
 
     pub fn from(packed_data: Vec<u8>) -> Self {
         let mut data = match decompress_container_data(packed_data) {
-            Some(n) => DataBuffer::from_bytes(&n),
+            Some(n) => DataBuffer::with_vec(n),
             None => {
                 println!("Unable to decompress container data.");
                 return Self::new();

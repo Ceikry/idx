@@ -7,7 +7,7 @@ type ParserFun<T> = fn(DataBuffer) -> T;
 
 pub trait DefParser {
     fn parse_bytes(bytes: Vec<u8>) -> Self where Self: Sized {
-        DefParser::parse_buff(DataBuffer::from_bytes(&bytes))
+        DefParser::parse_buff(DataBuffer::with_vec(bytes))
     }
 
     fn parse_buff(buffer: DataBuffer) -> Self;
@@ -384,10 +384,10 @@ fn get_name_hash(name: &str) -> u32 {
 }
 
 pub(crate) fn decompress_container_data(packed_data: Vec<u8>) -> Option<Vec<u8>> {
-    let mut data = DataBuffer::from_bytes(&packed_data);
+    let mut data = DataBuffer::with_vec(packed_data);
     let mut unpacked = Vec::<u8>::new();
 
-    if packed_data.is_empty() {
+    if data.len() == 0 {
         return Some(Vec::new());
     }
 
@@ -400,23 +400,19 @@ pub(crate) fn decompress_container_data(packed_data: Vec<u8>) -> Option<Vec<u8>>
     } else {
         match compression {
             0 => { //Uncompressed
-                for _ in 0..container_size {
-                    unpacked.push(data.read_u8());
-                }
-        
-                Some(unpacked)
+                let trim_at = data.get_rpos();
+                let mut raw = data.deconstruct();
+
+                raw.drain(..trim_at);
+                Some(raw)
             },
 
             1 => { //Bzip2 (supposedly)
                 let decompressed_size = data.read_u32();
-                let mut current_index: usize = 0;
                 let trim_at = data.get_rpos() - 4;
 
-                let mut trimmed_data = data.to_bytes();
-                trimmed_data.retain(|_| {
-                    current_index +=1;
-                    current_index > trim_at
-                });
+                let mut trimmed_data = data.deconstruct();
+                trimmed_data.drain(..trim_at);
 
                 //Re-add header jagex strips.
                 trimmed_data[0] = b'B';
@@ -431,21 +427,17 @@ pub(crate) fn decompress_container_data(packed_data: Vec<u8>) -> Option<Vec<u8>>
                     }
                 }
 
-                assert_eq!(decompressed_size, unpacked.len() as u32, "packed size: {}, decompressed correct: {}, current decompressed: {}", packed_data.len(), decompressed_size, unpacked.len());
+                assert_eq!(decompressed_size, unpacked.len() as u32);
                 Some(unpacked)
             },
 
             _ => { //DEFLATE/Gzip/Zip
                 let decompressed_size = data.read_u32();
-                let mut current_index: usize = 0;
                 data.set_rpos(data.get_rpos() + 10);
                 let trim_at = data.get_rpos();
 
-                let mut trimmed_data = data.to_bytes();
-                trimmed_data.retain(|_| {
-                    current_index +=1;
-                    current_index > trim_at
-                });
+                let mut trimmed_data = data.deconstruct();
+                trimmed_data.drain(..trim_at);
 
                 unpacked = match inflate::inflate_bytes(&trimmed_data) {
                     Ok(n) => n,
@@ -455,7 +447,7 @@ pub(crate) fn decompress_container_data(packed_data: Vec<u8>) -> Option<Vec<u8>>
                     }
                 };
 
-                assert_eq!(decompressed_size, unpacked.len() as u32, "packed size: {}, trimmed size: {}, decompressed correct: {}, current decompressed: {}", packed_data.len(), trimmed_data.len(), decompressed_size, unpacked.len());
+                assert_eq!(decompressed_size, unpacked.len() as u32);
                 Some(unpacked)
             }
         }
