@@ -136,76 +136,75 @@ impl CacheIndex {
             }
         };
 
-        let container_size = ((data[2] & 0xff) as u32) + ((((0xff & data[0]) as u32) << 16) + (((data[1] as u32) << 8) & 0xff00));
-        let mut sector = (((data[3] & 0xff) as i32) << 16) - (-((0xff & data[4] as i32) << 8) - (data[5] as i32 & 0xff)); 
+        let container_size = (data[2] as u32) + (((data[0] as u32) << 16) + (((data[1] as u32) << 8) & 0xff00));
+        let mut sector = ((data[3] as i32) << 16) - (-((0xff & data[4] as i32) << 8) - (data[5] as i32 & 0xff)); 
 
         if container_size > self.max_container_size {
             println!("Container Size greater than Max Container Size! {} > {}", container_size, self.max_container_size);
             None
+        } else if sector <= 0 {
+            println!("Sector <= 0! {}", sector);
+            None
         } else {
-            if sector <= 0 {
-                println!("Sector <= 0! {}", sector);
-                None
-            } else {
-                let mut container_data = Vec::<u8>::new();
+            let mut container_data = Vec::<u8>::new();
 
-                let mut data_read_count = 0;
-                let mut part = 0;
+            let mut data_read_count = 0;
+            let mut part = 0;
 
-                while container_size > data_read_count {
-                    if sector == 0 {
-                        println!("Sector == 0!");
-                        return None;
-                    }
-
-                    let _ = data_file.seek(SeekFrom::Start(520 * (sector as u64)));
-
-                    let mut data_to_read = container_size - data_read_count;
-
-                    if data_to_read > 512 {
-                        data_to_read = 512;
-                    }
-
-                    let _ = data_file.read(&mut file_buff);
-
-                    let current_container_id = (0xff & file_buff[1] as u32) + ((0xff & file_buff[0] as u32) << 8);
-                    let current_part = ((0xff & file_buff[2] as u32) << 8) + (0xff & file_buff[3] as u32);
-                    let next_sector = (0xff & file_buff[6] as u32) + ((0xff & file_buff[5] as u32) << 8) + ((0xff & file_buff[4] as u32) << 16);
-                    let current_idx_file_id = 0xff & file_buff[7] as u32;
-
-                    if container_id != (current_container_id as u32) || current_part != part || self.file_id != (current_idx_file_id as u8) {
-                        println!("Multipart failure! {} != {} || {} != {} || {} != {}", container_id, current_container_id, current_part, part, self.file_id, current_idx_file_id);
-                        return None;
-                    }
-
-                    let upper_bound = 8 + data_to_read as usize;
-
-                    container_data.extend_from_slice(&file_buff[8..upper_bound]);
-                    data_read_count += data_to_read;
-
-                    part += 1;
-                    sector = next_sector as i32;
+            while container_size > data_read_count {
+                if sector == 0 {
+                    println!("Sector == 0!");
+                    return None;
                 }
 
-                Some(container_data)
+                let _ = data_file.seek(SeekFrom::Start(520 * (sector as u64)));
+
+                let mut data_to_read = container_size - data_read_count;
+
+                if data_to_read > 512 {
+                    data_to_read = 512;
+                }
+
+                let _ = data_file.read(&mut file_buff);
+
+                let current_container_id = (0xff & file_buff[1] as u32) + ((0xff & file_buff[0] as u32) << 8);
+                let current_part = ((0xff & file_buff[2] as u32) << 8) + (0xff & file_buff[3] as u32);
+                let next_sector = (0xff & file_buff[6] as u32) + ((0xff & file_buff[5] as u32) << 8) + ((0xff & file_buff[4] as u32) << 16);
+                let current_idx_file_id = 0xff & file_buff[7] as u32;
+
+                if container_id != (current_container_id as u32) || current_part != part || self.file_id != (current_idx_file_id as u8) {
+                    println!("Multipart failure! {} != {} || {} != {} || {} != {}", container_id, current_container_id, current_part, part, self.file_id, current_idx_file_id);
+                    return None;
+                }
+
+                let upper_bound = 8 + data_to_read as usize;
+
+                container_data.extend_from_slice(&file_buff[8..upper_bound]);
+                data_read_count += data_to_read;
+
+                part += 1;
+                sector = next_sector as i32;
             }
+
+            Some(container_data)
         }
     }
 
     pub fn get_total_files(&mut self) -> u32 {
-        self.container_info.container_indices.sort();
+        self.container_info.container_indices.sort_unstable();
 
-        let last_archive_id = self.container_info.container_indices.last().unwrap().clone();
+        let last_archive_id = *self.container_info.container_indices.last().unwrap();
         let last_archive = self.container_info.containers.get(&last_archive_id).unwrap();
 
         let last_archive_file_amount = last_archive.file_indices.len();
         let other_file_amounts = (self.container_info.container_indices.len() - 1) * 256;
         
-        return (last_archive_file_amount + other_file_amounts) as u32;
+        (last_archive_file_amount + other_file_amounts) as u32
     }
 }
 
 #[allow(dead_code)]
+#[derive(Default)]
 pub struct IdxContainerInfo {
     protocol: u8,
     revision: u32,
@@ -217,14 +216,7 @@ pub struct IdxContainerInfo {
 
 impl IdxContainerInfo {
     pub fn new() -> Self {
-        Self {
-            protocol: 0,
-            revision: 0,
-            container_indices: Vec::new(),
-            containers: HashMap::new(),
-            named_files: false,
-            whirlpool: false,
-        }
+        Self::default()
     }
 
     pub fn from(packed_data: Vec<u8>) -> Self {
@@ -240,7 +232,7 @@ impl IdxContainerInfo {
         
         if protocol != 5 && protocol != 6 {
             println!("Invalid protocol while parsing container info: {}", protocol);
-            return Self::new();
+            Self::new()
         } else {
             let revision = match protocol {
                 5 => 0,
@@ -258,61 +250,60 @@ impl IdxContainerInfo {
             for i in 0..num_indices {
                 container_indices.push((data.read_u16() as u32) + match i {
                     0 => 0,
-                    _ => container_indices.last().unwrap().clone()
+                    _ => *container_indices.last().unwrap()
                 });
 
-                containers.insert(container_indices.last().unwrap().clone(), IdxContainer::new());
+                containers.insert(*container_indices.last().unwrap(), IdxContainer::new());
             }
 
             if files_named {
-                for i in 0..(num_indices as usize) {
-                    containers.get_mut(&container_indices[i]).unwrap().name_hash = data.read_u32();
+                for c in container_indices.iter().take(num_indices as usize) {
+                    containers.get_mut(c).unwrap().name_hash = data.read_u32();
                 }
             }
 
             let mut file_hashes: HashMap<u32, [u8;64]> = HashMap::new();
 
             if whirlpool {
-                for i in 0..(num_indices as usize) {
+                for c in container_indices.iter().take(num_indices as usize) {
                     let mut buf: [u8; 64] = [0; 64];
                     let _ = data.read(&mut buf);
-                    file_hashes.insert(container_indices[i].clone(), buf);
+                    file_hashes.insert(*c, buf);
                 }
             }
 
-            for i in 0..(num_indices as usize) {
-                let container = containers.get_mut(&container_indices[i]).unwrap();
+            for c in container_indices.iter().take(num_indices as usize) {
+                let container = containers.get_mut(c).unwrap();
                 container.crc = data.read_i32();
             }
 
-            for i in 0..(num_indices as usize) {
-                let container = containers.get_mut(&container_indices[i]).unwrap();
+            for c in container_indices.iter().take(num_indices as usize) {
+                let container = containers.get_mut(c).unwrap();
                 container.version = data.read_i32();
             }
 
             let mut container_index_counts = HashMap::<u32, u16>::new(); 
 
-            for i in 0..(num_indices as usize) {
-                container_index_counts.insert(container_indices[i].clone(), data.read_u16());
+            for c in container_indices.iter().take(num_indices as usize) {
+                container_index_counts.insert(*c, data.read_u16());
             }
 
-            for i in 0..(num_indices as usize) {
-                let container = containers.get_mut(&container_indices[i]).unwrap();
+            for c in container_indices.iter().take(num_indices as usize) {
+                let container = containers.get_mut(c).unwrap();
                 
-                for f in 0..(container_index_counts.get(&container_indices[i]).unwrap().clone() as usize){
+                for f in 0..(*container_index_counts.get(c).unwrap() as usize){
                     container.file_indices.push((data.read_u16() as u32) + match f {
                         0 => 0,
                         _ => container.file_indices[f - 1]
                     });
 
-                    container.file_containers.insert(container.file_indices[f].clone(), IdxFileContainer::new());
+                    container.file_containers.insert(container.file_indices[f], IdxFileContainer::new());
                 }
             }
 
             if whirlpool {
-                for container_index in 0..container_indices.len() {
+                for (container_index, container_id) in container_indices.iter().enumerate() {
                     for file_index in 0..containers.get(&(container_index as u32)).unwrap().file_containers.len() {
-                        let container_id = container_indices[container_index];
                         let file_id = containers.get(&container_id).unwrap().file_indices[file_index];
                         
                         containers.get_mut(&container_id).unwrap()
@@ -323,8 +314,8 @@ impl IdxContainerInfo {
             }
 
             if files_named {
-                for i in 0..(num_indices as usize) {
-                    let container = containers.get_mut(&container_indices[i]).unwrap();
+                for c in container_indices.iter().take(num_indices as usize) {
+                    let container = containers.get_mut(c).unwrap();
 
                     for f in 0..(container.file_indices.len()) {
                         let file = container.file_containers.get_mut(&container.file_indices[f]).unwrap();
@@ -346,6 +337,7 @@ impl IdxContainerInfo {
     }
 }
 
+#[derive(Default)]
 pub struct IdxContainer {
     version: i32,
     name_hash: u32,
@@ -356,17 +348,12 @@ pub struct IdxContainer {
 
 impl IdxContainer {
     pub fn new() -> Self {
-        Self {
-            version: -1,
-            name_hash: 0,
-            crc: -1,
-            file_indices: Vec::new(),
-            file_containers: HashMap::new()
-        }
+        Self::default()
     }
 }
 
 #[allow(dead_code)]
+#[derive(Default)]
 pub struct IdxFileContainer {
     version: u8,
     name_hash: u32,
@@ -376,11 +363,6 @@ pub struct IdxFileContainer {
 
 impl IdxFileContainer {
     pub fn new() -> Self {
-        Self {
-            version: 0,
-            name_hash: 0,
-            crc: -1,
-            data: Vec::new()
-        }
+        Self::default()
     }
 }

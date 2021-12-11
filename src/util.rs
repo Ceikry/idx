@@ -7,7 +7,7 @@ type ParserFun<T> = fn(DataBuffer) -> T;
 
 pub trait DefParser {
     fn parse_bytes(bytes: Vec<u8>) -> Self where Self: Sized {
-        return DefParser::parse_buff(DataBuffer::from_bytes(&bytes));
+        DefParser::parse_buff(DataBuffer::from_bytes(&bytes))
     }
 
     fn parse_buff(buffer: DataBuffer) -> Self;
@@ -98,7 +98,7 @@ pub struct DefProvider<T> {
 }
 
 impl <T: DefParser> DefProvider<T> {
-    pub fn with(cache: Arc<Mutex<Cache>>, index: u32) -> Self {
+    pub fn with(cache: &Arc<Mutex<Cache>>, index: u32) -> Self {
         Self {
             cache: cache.clone(),
             index,
@@ -226,7 +226,7 @@ impl FileProvider {
         };
 
         if file_data.len() != 0 {
-            return file_data;
+            file_data
         } else {
             self.load_requested_container_files();
 
@@ -239,7 +239,7 @@ impl FileProvider {
                         }
                         None => {
                             println!("Invalid archive supplied?");
-                            return DataBuffer::new()
+                            DataBuffer::new()
                         }
                     },
                     None => {
@@ -281,14 +281,13 @@ impl FileProvider {
         };
 
         if file_info.len() == 1 {
-            match archive.file_containers.get_mut(&file_info[0]) {
-                Some(n) => n.data = container_data,
-                None => return
+            if let Some(file_container) = archive.file_containers.get_mut(&file_info[0]) {
+                file_container.data = container_data;
             }
         } else {
             let mut file_sizes = Vec::<i32>::new();
             for _ in 0..(num_loops as usize) {
-                let mut offset = 0 as i32;
+                let mut offset = 0_i32;
                 for file_index in 0..(file_info.len() as usize){
                     offset += buffer.read_i32();
                     if file_sizes.len() == file_index {
@@ -304,15 +303,15 @@ impl FileProvider {
             let mut offset = 0;
             for _ in 0..(num_loops as usize) {
                 let mut data_read = 0;
-                for file_index in 0..(file_info.len()) {
+                for file_index in &file_info {
                     data_read += buffer.read_i32();
 
-                    match archive.file_containers.get_mut(&file_info[file_index]) {
+                    match archive.file_containers.get_mut(file_index) {
                         Some(n) => {
                             n.data.append(&mut container_data[(offset as usize)..((offset + data_read) as usize)].to_vec())
                         },
                         None => {
-                            println!("Unknown file id: {}", file_info[file_index]);
+                            println!("Unknown file id: {}", file_index);
                             continue;
                         }
                     }
@@ -360,7 +359,7 @@ impl FileProvider {
         };
 
         for file in container.file_indices.iter() {
-            file_info.push(file.clone());
+            file_info.push(*file);
         }
 
         file_info
@@ -373,13 +372,13 @@ pub trait ContainerIdProvider {
 
 impl ContainerIdProvider for str {
     fn get_id(&self) -> u32 {
-        return get_name_hash(&self);
+        get_name_hash(&self)
     }
 }
 
 impl ContainerIdProvider for u32 {
     fn get_id(&self) -> u32 {
-        return self.clone();
+        *self
     }
 }
 
@@ -408,7 +407,7 @@ pub(crate) fn decompress_container_data(packed_data: Vec<u8>) -> Option<Vec<u8>>
 
     if container_size > 5000000 {
         println!("Invalid container size! {}", container_size);
-        return None;
+        None
     } else {
         match compression {
             0 => { //Uncompressed
@@ -416,7 +415,7 @@ pub(crate) fn decompress_container_data(packed_data: Vec<u8>) -> Option<Vec<u8>>
                     unpacked.push(data.read_u8());
                 }
         
-                return Some(unpacked);
+                Some(unpacked)
             },
 
             1 => { //Bzip2 (supposedly)
@@ -427,14 +426,14 @@ pub(crate) fn decompress_container_data(packed_data: Vec<u8>) -> Option<Vec<u8>>
                 let mut trimmed_data = data.to_bytes();
                 trimmed_data.retain(|_| {
                     current_index +=1;
-                    current_index - 1 >= trim_at
+                    current_index > trim_at
                 });
 
                 //Re-add header jagex strips.
-                trimmed_data[0] = 'B' as u8;
-                trimmed_data[1] = 'Z' as u8;
-                trimmed_data[2] = 'h' as u8;
-                trimmed_data[3] = '1' as u8;
+                trimmed_data[0] = b'B';
+                trimmed_data[1] = b'Z';
+                trimmed_data[2] = b'h';
+                trimmed_data[3] = b'1';
 
                 match BzDecoder::new(&trimmed_data[..]).read_to_end(&mut unpacked) {
                     Ok(_) => {},
@@ -444,7 +443,7 @@ pub(crate) fn decompress_container_data(packed_data: Vec<u8>) -> Option<Vec<u8>>
                 }
 
                 assert_eq!(decompressed_size, unpacked.len() as u32, "packed size: {}, decompressed correct: {}, current decompressed: {}", packed_data.len(), decompressed_size, unpacked.len());
-                return Some(unpacked);
+                Some(unpacked)
             },
 
             _ => { //DEFLATE/Gzip/Zip
@@ -456,7 +455,7 @@ pub(crate) fn decompress_container_data(packed_data: Vec<u8>) -> Option<Vec<u8>>
                 let mut trimmed_data = data.to_bytes();
                 trimmed_data.retain(|_| {
                     current_index +=1;
-                    current_index - 1 >= trim_at
+                    current_index > trim_at
                 });
 
                 unpacked = match inflate::inflate_bytes(&trimmed_data) {
@@ -468,7 +467,7 @@ pub(crate) fn decompress_container_data(packed_data: Vec<u8>) -> Option<Vec<u8>>
                 };
 
                 assert_eq!(decompressed_size, unpacked.len() as u32, "packed size: {}, trimmed size: {}, decompressed correct: {}, current decompressed: {}", packed_data.len(), trimmed_data.len(), decompressed_size, unpacked.len());
-                return Some(unpacked);
+                Some(unpacked)
             }
         }
     }
