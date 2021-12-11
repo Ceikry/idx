@@ -1,4 +1,4 @@
-use std::{sync::{Arc, Mutex}, collections::HashMap, fs::File, io::Read};
+use std::{sync::{Arc, Mutex}, collections::HashMap, fs::File, io::{Read, BufReader}};
 use bzip2::bufread::BzDecoder;
 use databuffer::DataBuffer;
 use crate::Cache;
@@ -153,25 +153,14 @@ pub struct FileProvider {
     cache: Arc<Mutex<Cache>>,
     index: u32,
     archive: u32,
-    data_file: Arc<Mutex<File>>,
+    data_file: Arc<Mutex<BufReader<File>>>,
     keys: Vec<i64>
 }
 
 impl FileProvider {
     pub fn from(cache: Arc<Mutex<Cache>>) -> Self {
         let dfile = match cache.lock() {
-            Ok(n) => match n.data_file.lock() {
-                Ok(n) => match n.try_clone() {
-                    Ok(n) => Arc::from(Mutex::from(n)),
-                    Err(e) => {
-                        panic!("Unable to obtain new file reference: {}", e);
-                    }
-                }
-
-                Err(e) => {
-                    panic!("Unable to lock data file reference: {}", e);
-                }
-            }
+            Ok(n) => n.data_file.clone(),
 
             Err(e) => {
                 panic!("Unable to lock cache: {}", e);

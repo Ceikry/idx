@@ -10,11 +10,28 @@ fn test_load_cache() {
         let cache = Arc::from(Mutex::from(_cache));
         let mut file_provider = FileProvider::from(cache);
 
-        let whip_id = 4152 as u32;
+        let whip_id = 0 as u32;
         let whip_archive = file_provider.index(19).archive(&(whip_id >> 8));
 
         let whip_data = whip_archive.request(&(whip_id & 0xff));
+        println!("{:?}", whip_data.to_bytes());
 
+        let whip_id = 15219 as u32;
+        let whip_archive = file_provider.index(19).archive(&(whip_id >> 8));
+
+        let whip_data = whip_archive.request(&(whip_id & 0xff));
+        println!("{:?}", whip_data.to_bytes());
+
+        let whip_id = 13412 as u32;
+        let whip_archive = file_provider.index(19).archive(&(whip_id >> 8));
+
+        let whip_data = whip_archive.request(&(whip_id & 0xff));
+        println!("{:?}", whip_data.to_bytes());
+
+        let whip_id = 9316 as u32;
+        let whip_archive = file_provider.index(19).archive(&(whip_id >> 8));
+
+        let whip_data = whip_archive.request(&(whip_id & 0xff));
         println!("{:?}", whip_data.to_bytes())
     }
 }

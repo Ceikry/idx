@@ -1,4 +1,4 @@
-use std::{io::{Seek, SeekFrom, Read}, fs::{File, OpenOptions}, path::PathBuf, collections::HashMap, sync::{Arc, Mutex, MutexGuard}};
+use std::{io::{Seek, SeekFrom, Read, BufReader}, fs::{File, OpenOptions}, path::PathBuf, collections::HashMap, sync::{Arc, Mutex, MutexGuard}};
 use databuffer::DataBuffer;
 use crate::util::decompress_container_data;
 
@@ -24,7 +24,7 @@ type IdxFileOpt<'a> = Option<&'a mut CacheIndex>;
   For tips on implementing a full-blown Definition Provider, see [`util::DefProvider`].
  */
 pub struct Cache {
-    pub data_file: Arc<Mutex<File>>,
+    pub data_file: Arc<Mutex<BufReader<File>>>,
     indices: HashMap<u8, CacheIndex>
 }
 
@@ -51,7 +51,7 @@ impl Cache {
         let data_file = match OpenOptions::new()
         .read(true)
         .open(&path_buff) {
-            Ok(n) => Arc::from(Mutex::from(n)),
+            Ok(n) => Arc::from(Mutex::from(BufReader::new(n))),
             Err(e) => {
                 println!("Failed opening data file: {:?}, Error: {}", &path_buff, e);
                 return None;
@@ -61,7 +61,7 @@ impl Cache {
         let num_files = info_file.seek(SeekFrom::End(0)).unwrap() / 6;
         let _ = info_file.seek(SeekFrom::Start(0));
 
-        let mut info = CacheIndex::from(255, 500000, info_file, IdxContainerInfo::new());
+        let mut info = CacheIndex::from(255, 500000, BufReader::new(info_file), IdxContainerInfo::new());
         let mut indices = HashMap::<u8, CacheIndex>::new();
 
         for i in 1..num_files {
@@ -70,7 +70,7 @@ impl Cache {
             path_buff.push(format!("main_file_cache.idx{}",&i));
 
             let file = match OpenOptions::new().read(true).open(&path_buff) {
-                Ok(n) => n,
+                Ok(n) => BufReader::new(n),
                 Err(e) => {
                     println!("Error reading idx {}: {}", i, e);
                     continue;
@@ -110,13 +110,13 @@ impl Cache {
 
 pub struct CacheIndex {
     file_id: u8,
-    file: File,
+    file: BufReader<File>,
     max_container_size: u32,
     container_info: IdxContainerInfo
 }
 
 impl CacheIndex {
-    fn from(file_id: u8, max_size: u32, file: File, container_info: IdxContainerInfo) -> Self {
+    fn from(file_id: u8, max_size: u32, file: BufReader<File>, container_info: IdxContainerInfo) -> Self {
         Self {
             file_id,
             max_container_size: max_size,
@@ -125,10 +125,17 @@ impl CacheIndex {
         }
     }
 
-    fn container_data(&mut self, mut data_file: MutexGuard<File>, container_id: u32) -> Option<Vec<u8>> {
+    fn container_data(&mut self, mut data_file: MutexGuard<BufReader<File>>, container_id: u32) -> Option<Vec<u8>> {
         let mut file_buff: [u8; 520] = [0; 520];
         let mut data: [u8;6] = [0; 6];
-        let _ = self.file.seek(SeekFrom::Start(6 * (container_id as u64)));
+
+        let current_pos = self.file.stream_position().unwrap() as i64;
+        let seek_target = 6 * container_id as i64;
+
+        if current_pos != seek_target {
+            let _ = self.file.seek_relative(seek_target - current_pos);
+        }
+
         let _ = match self.file.read(&mut data) {
             Ok(_) => {}
             Err(e) => {
@@ -157,7 +164,12 @@ impl CacheIndex {
                     return None;
                 }
 
-                let _ = data_file.seek(SeekFrom::Start(520 * (sector as u64)));
+                let current_pos: i64 = data_file.stream_position().unwrap() as i64;
+                let seek_target: i64 = 520 * (sector as i64);
+
+                if current_pos != seek_target {
+                    let _ = data_file.seek_relative(seek_target - current_pos);
+                }
 
                 let mut data_to_read = container_size - data_read_count;
 
@@ -165,7 +177,13 @@ impl CacheIndex {
                     data_to_read = 512;
                 }
 
-                let _ = data_file.read(&mut file_buff);
+                let bytes_read = data_file.read(&mut file_buff).unwrap();
+
+                if data_to_read + 8 > bytes_read as u32 {
+                    let _ = data_file.seek(SeekFrom::Start(520 * (sector as u64)));
+
+                    let _ = data_file.read(&mut file_buff);
+                }
 
                 let current_container_id = (0xff & file_buff[1] as u32) + ((0xff & file_buff[0] as u32) << 8);
                 let current_part = ((0xff & file_buff[2] as u32) << 8) + (0xff & file_buff[3] as u32);
