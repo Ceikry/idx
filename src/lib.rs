@@ -112,7 +112,8 @@ pub struct CacheIndex {
     file_id: u8,
     file: BufReader<File>,
     max_container_size: u32,
-    container_info: IdxContainerInfo
+    container_info: IdxContainerInfo,
+    last_archive_id: u32
 }
 
 impl CacheIndex {
@@ -121,20 +122,23 @@ impl CacheIndex {
             file_id,
             max_container_size: max_size,
             file,
-            container_info
+            container_info,
+            last_archive_id: 0
         }
     }
 
-    fn container_data(&mut self, mut data_file: MutexGuard<BufReader<File>>, container_id: u32) -> Option<Vec<u8>> {
+    fn container_data(&mut self, mut data_file: MutexGuard<BufReader<File>>, archive_id: u32) -> Option<Vec<u8>> {
         let mut file_buff: [u8; 520] = [0; 520];
         let mut data: [u8;6] = [0; 6];
 
-        let current_pos = self.file.stream_position().unwrap() as i64;
-        let seek_target = 6 * container_id as i64;
-
-        if current_pos != seek_target {
-            let _ = self.file.seek_relative(seek_target - current_pos);
+        if archive_id <= 1 {
+            let _ = self.file.seek(SeekFrom::Start(6 * archive_id as u64));
+        } else if self.last_archive_id != archive_id - 1 {
+            let seek_offset = 6 * (archive_id as i64 - (self.last_archive_id as i64 + 1));
+            let _ = self.file.seek_relative(seek_offset);
         }
+
+        self.last_archive_id = archive_id;
 
         let _ = match self.file.read(&mut data) {
             Ok(_) => {}
@@ -156,7 +160,9 @@ impl CacheIndex {
             let mut container_data = Vec::<u8>::new();
 
             let mut data_read_count = 0;
-            let mut part = 0;
+            let mut part: u32 = 0;
+
+            let initial_dfile_pos = data_file.seek(SeekFrom::Start(520 * (sector as u64))).unwrap() as i64;
 
             while container_size > data_read_count {
                 if sector == 0 {
@@ -164,11 +170,11 @@ impl CacheIndex {
                     return None;
                 }
 
-                let current_pos: i64 = data_file.stream_position().unwrap() as i64;
                 let seek_target: i64 = 520 * (sector as i64);
+                let current_pos = initial_dfile_pos + (data_read_count as i64) + (part as i64 * 8);
 
                 if current_pos != seek_target {
-                    let _ = data_file.seek_relative(seek_target - current_pos);
+                    let _ = data_file.seek_relative(520);
                 }
 
                 let mut data_to_read = container_size - data_read_count;
@@ -190,8 +196,8 @@ impl CacheIndex {
                 let next_sector = (0xff & file_buff[6] as u32) + ((0xff & file_buff[5] as u32) << 8) + ((0xff & file_buff[4] as u32) << 16);
                 let current_idx_file_id = 0xff & file_buff[7] as u32;
 
-                if container_id != (current_container_id as u32) || current_part != part || self.file_id != (current_idx_file_id as u8) {
-                    println!("Multipart failure! {} != {} || {} != {} || {} != {}", container_id, current_container_id, current_part, part, self.file_id, current_idx_file_id);
+                if archive_id != (current_container_id as u32) || current_part != part || self.file_id != (current_idx_file_id as u8) {
+                    println!("Multipart failure! {} != {} || {} != {} || {} != {}", archive_id, current_container_id, current_part, part, self.file_id, current_idx_file_id);
                     return None;
                 }
 
