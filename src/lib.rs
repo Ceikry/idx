@@ -205,6 +205,7 @@ impl CacheIndex {
     }
 }
 
+#[allow(dead_code)]
 pub struct IdxContainerInfo {
     protocol: u8,
     revision: u32,
@@ -367,6 +368,7 @@ impl IdxContainer {
     }
 }
 
+#[allow(dead_code)]
 pub struct IdxFileContainer {
     version: u8,
     name_hash: u32,
