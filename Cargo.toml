@@ -1,12 +1,12 @@
 [package]
 name = "idx-rs"
-version = "0.9.2"
+version = "0.9.3"
 authors = ["Ceikry <ironceikry@gmail.com>"]
 description = "A fast and efficient library for working with IDX-formatted RuneScape caches."
 homepage = "https://github.com/ceikry/idx"
 repository = "https://github.com/ceikry/idx"
 keywords = ["idx", "runescape", "rs", "cache"]
-license = "MIT OR Apache-2.0"
+license = "GPL-3.0"
 edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
