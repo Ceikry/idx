@@ -33,6 +33,7 @@ use std::sync::{Arc, Mutex};
 
 use idx::*;
 use idx::util::*;
+use databuffer::DataBuffer;
 
 fn main() {
     let cache = Arc::from(Mutex::from(Cache::from_path("test_cache")));
