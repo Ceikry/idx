@@ -136,7 +136,7 @@ impl CacheIndex {
         }
     }
 
-    fn container_data(&mut self, mut data_file: MutexGuard<BufReader<File>>, archive_id: u32) -> Option<Vec<u8>> {
+    pub fn container_data(&mut self, mut data_file: MutexGuard<BufReader<File>>, archive_id: u32) -> Option<Vec<u8>> {
         let mut file_buff: [u8; 520] = [0; 520];
         let mut data: [u8;6] = [0; 6];
 
