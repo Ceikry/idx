@@ -91,6 +91,8 @@ impl Cache {
             indices.insert(i as u8, index);
         }
 
+        indices.insert(255, info);
+
         Some(Self {
             data_file,
             indices
