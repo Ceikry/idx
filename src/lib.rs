@@ -141,12 +141,7 @@ impl CacheIndex {
         let mut file_buff: [u8; 520] = [0; 520];
         let mut data: [u8;6] = [0; 6];
 
-        if archive_id <= 1 || self.last_archive_id == 0 {
-            let _ = self.file.seek(SeekFrom::Start(6 * archive_id as u64));
-        } else if self.last_archive_id != archive_id - 1 {
-            let seek_offset = 6 * (archive_id as i64 - (self.last_archive_id as i64 + 1));
-            let _ = self.file.seek_relative(seek_offset);
-        }
+        let _ = self.file.seek(SeekFrom::Start(6 * archive_id as u64));
 
         self.last_archive_id = archive_id;
 

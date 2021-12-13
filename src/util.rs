@@ -184,7 +184,6 @@ impl FileProvider {
         if self.index == 0 {
             self.archive = archive.get_id(None);
             println!("WARNING: archive was set before the index was! IDX: {}, ARCHIVE: {}. This will break archive access via name hashes!", self.index, self.archive);
-            return self
         }
 
         {
