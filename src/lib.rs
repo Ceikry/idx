@@ -179,7 +179,7 @@ impl CacheIndex {
                 let current_pos = initial_dfile_pos + (data_read_count as i64) + (part as i64 * 8);
 
                 if current_pos != seek_target {
-                    let _ = data_file.seek_relative(520);
+                    let _ = data_file.seek(SeekFrom::Start(seek_target as u64));
                 }
 
                 let mut data_to_read = container_size - data_read_count;
