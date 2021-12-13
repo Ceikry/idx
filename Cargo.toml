@@ -1,6 +1,6 @@
 [package]
 name = "idx-rs"
-version = "0.9.6"
+version = "0.9.7"
 authors = ["Ceikry <ironceikry@gmail.com>"]
 description = "A fast and efficient library for working with IDX-formatted RuneScape caches."
 homepage = "https://github.com/ceikry/idx"
@@ -15,6 +15,7 @@ edition = "2018"
 bzip2 = "0.4"
 inflate = "0.4"
 databuffer = "1"
+crc32fast = "1.3.0"
 
 [dev-dependencies]
 lazy_static = "1.4.0"

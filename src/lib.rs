@@ -239,6 +239,7 @@ impl CacheIndex {
 pub struct IdxContainerInfo {
     pub protocol: u8,
     pub revision: u32,
+    pub crc: u32,
     container_indices: Vec<u32>,
     pub containers: HashMap<u32, IdxContainer>,
     named_files: bool,
@@ -251,6 +252,11 @@ impl IdxContainerInfo {
     }
 
     pub fn from(packed_data: Vec<u8>) -> Self {
+        let mut crc_hasher = crc32fast::Hasher::new();
+        crc_hasher.update(&packed_data[..]);
+        let crc = crc_hasher.finalize();
+
+
         let mut data = match decompress_container_data(packed_data) {
             Some(n) => DataBuffer::with_vec(n),
             None => {
@@ -357,6 +363,7 @@ impl IdxContainerInfo {
 
 
             Self {
+                crc,
                 protocol,
                 revision,
                 container_indices,
