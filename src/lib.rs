@@ -1,4 +1,4 @@
-use std::{io::{Seek, SeekFrom, Read, BufReader}, fs::{File, OpenOptions}, path::PathBuf, collections::HashMap, sync::{Arc, Mutex, MutexGuard}};
+use std::{io::{Seek, SeekFrom, Read, BufReader}, fs::{File, OpenOptions}, path::PathBuf, collections::HashMap, sync::{Arc, Mutex, MutexGuard}, hash::Hasher};
 use databuffer::DataBuffer;
 use crate::util::decompress_container_data;
 
@@ -59,12 +59,13 @@ impl Cache {
         };
 
         let num_files = info_file.metadata().unwrap().len() / 6;
+        println!("{}", num_files);
         let _ = info_file.seek(SeekFrom::Start(0));
 
         let mut info = CacheIndex::from(255, 500000, BufReader::new(info_file), IdxContainerInfo::new());
         let mut indices = HashMap::<u8, CacheIndex>::new();
 
-        for i in 1..num_files {
+        for i in 0..num_files {
             path_buff.clear();
             path_buff.push(path);
             path_buff.push(format!("main_file_cache.idx{}",&i));
@@ -255,7 +256,7 @@ impl IdxContainerInfo {
 
     pub fn from(packed_data: Vec<u8>) -> Self {
         let mut crc_hasher = crc32fast::Hasher::new();
-        crc_hasher.update(&packed_data[..]);
+        crc_hasher.update(&packed_data);
         let crc = crc_hasher.finalize();
 
 
