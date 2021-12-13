@@ -25,7 +25,7 @@ type IdxFileOpt<'a> = Option<&'a mut CacheIndex>;
  */
 pub struct Cache {
     pub data_file: Arc<Mutex<BufReader<File>>>,
-    indices: HashMap<u8, CacheIndex>
+    pub indices: HashMap<u8, CacheIndex>
 }
 
 impl Cache {
@@ -112,7 +112,7 @@ pub struct CacheIndex {
     file_id: u8,
     file: BufReader<File>,
     max_container_size: u32,
-    container_info: IdxContainerInfo,
+    pub container_info: IdxContainerInfo,
     last_archive_id: u32
 }
 
@@ -237,10 +237,10 @@ impl CacheIndex {
 #[allow(dead_code)]
 #[derive(Default)]
 pub struct IdxContainerInfo {
-    protocol: u8,
-    revision: u32,
+    pub protocol: u8,
+    pub revision: u32,
     container_indices: Vec<u32>,
-    containers: HashMap<u32, IdxContainer>,
+    pub containers: HashMap<u32, IdxContainer>,
     named_files: bool,
     whirlpool: bool
 }
@@ -370,9 +370,9 @@ impl IdxContainerInfo {
 
 #[derive(Default)]
 pub struct IdxContainer {
-    version: i32,
+    pub version: i32,
     name_hash: u32,
-    crc: i32,
+    pub crc: i32,
     file_indices: Vec<u32>,
     file_containers: HashMap<u32, IdxFileContainer>
 }
