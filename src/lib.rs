@@ -1,38 +1,115 @@
-use std::{io::{Seek, SeekFrom, Read, BufReader}, fs::{File, OpenOptions}, path::PathBuf, collections::HashMap, sync::{Arc, Mutex, MutexGuard}, hash::Hasher};
+//! A high-speed, efficient library for reading IDX-formatted RuneScape 2 caches. 
+//! IDX attempts to establish an efficient and reliable means of reading IDX-formatted RuneScape 2 caches for the Rust ecosystem.
+//! As the data being read from these formats is copyrighted by Jagex, I will under no circumstance provide a test cache or any other cache.
+//! Should you seek to acquire a cache from somewhere, the OpenRS2 Archive is a good place to look.
+//! 
+//! To accomplish the goal of providing a clean and easy-to-use solution for reading IDX-formatted caches, IDX provides the following:
+//! 
+//! * A data model that closely resembles the internal structure of the idx files, once parsed.
+//! * APIs for [retrieving raw file data][rawdata], implementing [definition parsers][defparser], and finally [definition providers][defprovider], which work in conjunction with definition parsers.
+//! * Additionally, as part of IDX's development, a [specialized buffer] was created that can perform all the necessary reads and writes to interact with the RuneScape cache, and even packets within the RS protocol.
+//! 
+//! [rawdata]: util::FileProvider
+//! [defparser]: util::DefParser
+//! [defprovider]: util::DefProvider
+//! [specialzied buffer]: https://crates.io/crates/databuffer
+//! 
+//! # Quick Start with IDX
+//! 
+//! IDX is fairly straightforward and simple to use. Your entry point, and the first necessary step, is generating a [`Cache`] instance for use with your File and Definition providers.
+//! 
+//! Below is a quick and easy example for setting up a basic system.
+//! 
+//! ```ignore
+//! use idx::*;
+//! use idx::util::*;
+//! use databuffer::DataBuffer;
+//! 
+//! #[derive(Default)]
+//! struct DummyDefinition {
+//!     some_value: u8
+//! }
+//! 
+//! //Implement our definition parser for our DummyDefinition
+//! impl DefParser for DummyDefinition {
+//!     fn parse_buff(buffer: DataBuffer) -> Self {
+//!        let mut def = DummyDefinition::default();
+//!
+//!        let opcode: u8;
+//!
+//!        loop {
+//!            opcode = buffer.read_u8();
+//!
+//!            match opcode {
+//!                0 -> break,
+//!                1 -> def.some_value = buffer.read_u8()
+//!            }
+//!        }
+//!
+//!        return def;
+//!    }
+//! }
+//! 
+//! fn main() {
+//!     let cache = CacheBuilder::new()
+//!                 .with_path("/path/to/cache")
+//!                 .with_base_filename("main_file_cache") //this is the default value
+//!                 .calculate_crc32(true) //this is the default value
+//!                 .build();
+//! 
+//!     let data_provider = FileProvider::from(&cache);
+//!     data_provider.index(19).archive(&1);
+//! 
+//!     let mut data: DataBuffer = data_provider.request(&0); //This will return a DataBuffer containing the data from File 0, Archive 1, Index 19.
+//! 
+//!     let dummy_def_provider = DefProvider::<DummyDefinition>::with(cache, 1); //Makes a DefProvider using the cache, the Dummy Definition parser we defined above, and set for index 1.
+//!     let definition = dummy_def_provider.get_def(&3, &1); //returns the parsed definition from file 1 of archive 3.
+//! }
+//! ```
+//! 
+//! See [file provider docs][rawdata] for more information on the FileProvider.
+//! 
+//! See [definition provider docs][defprovider] for more information on DefProvider and DefParser.
+//! 
+//! IDX will cache the raw data for all files read during runtime, to prevent repeat file operations.
+//! 
+//! You can clear this data at any time by invoking the clear_raw_data() method of your cache. Alternatively, you can get the [`IdxContainer`] for an individual archive and call its clear_filedata() method.
+//! 
+//! The Definition Provider will also automatically cache previously-parsed definitions, to prevent unnecessary parsing.
+
+use std::{io::{Seek, SeekFrom, Read, BufReader}, fs::{File, OpenOptions}, path::PathBuf, collections::HashMap, sync::{Arc, Mutex, MutexGuard}};
 use databuffer::DataBuffer;
+use util::CacheBuilder;
 use crate::util::decompress_container_data;
 
 pub mod util;
 
 type IdxFileOpt<'a> = Option<&'a mut CacheIndex>;
 
-/**
-  The Cache struct is the top-level representation of the cache itself,
-  all data within the cache is accessed via this struct.
-  It is highly recommended (and in fact necessary for DefProvider) 
-  that the cache is wrapped in a Arc'd Mutex, like so:
-  ```ignore
-  let cache = Arc::from(Mutex::from(Cache::from_path("test_cache")));
-  ```
-
-  Once the Cache is creating using its [`Cache::from_path("/path/to/cache")`] method,
-  all archives and file containers will be populated, though
-  none of the data will be read for individual files.
-
-  For a recommended method of retrieving raw file data from the cache, see [`util::FileProvider`].
-  
-  For tips on implementing a full-blown Definition Provider, see [`util::DefProvider`].
- */
+///The Cache struct is the top-level representation of the cache itself,
+///all data within the cache is accessed via this struct.
+///
+///The Cache is provided pre-wrapped in a [`Arc<Mutex>`].
+///
+///The idiomatic way to construct a Cache struct is with a [`util::CacheBuilder`].
+///
+///Once the Cache is creating using its [`Cache::with(builder)`] method,
+///all archives and file containers will be populated, though
+///none of the data will be read for individual files.
+///
+///For a recommended method of retrieving raw file data from the cache, see [`util::FileProvider`].
+///
+///For tips on implementing a full-blown Definition Provider, see [`util::DefProvider`].
 pub struct Cache {
     pub data_file: Arc<Mutex<BufReader<File>>>,
     pub indices: HashMap<u8, CacheIndex>
 }
 
 impl Cache {
-    pub fn from_path(path: &str) -> Option<Self> {
+    pub fn with(builder: CacheBuilder) -> Option<Self> {
         let mut path_buff = PathBuf::new();
-        path_buff.push(path);
-        path_buff.push("main_file_cache.idx255");
+        path_buff.push(&builder.cache_path);
+        path_buff.push(format!("{}.idx255", &builder.base_file_name));
 
         let mut info_file = match OpenOptions::new()
         .read(true)
@@ -45,8 +122,8 @@ impl Cache {
         };
 
         path_buff.clear();
-        path_buff.push(path);
-        path_buff.push("main_file_cache.dat2");
+        path_buff.push(&builder.cache_path);
+        path_buff.push(format!("{}.dat2", &builder.base_file_name));
 
         let data_file = match OpenOptions::new()
         .read(true)
@@ -67,8 +144,8 @@ impl Cache {
 
         for i in 0..num_files {
             path_buff.clear();
-            path_buff.push(path);
-            path_buff.push(format!("main_file_cache.idx{}",&i));
+            path_buff.push(&builder.cache_path);
+            path_buff.push(format!("{}.idx{}", &builder.base_file_name, &i));
 
             let file = match OpenOptions::new().read(true).open(&path_buff) {
                 Ok(n) => BufReader::new(n),
@@ -86,7 +163,7 @@ impl Cache {
                 }
             };
 
-            let container_info = IdxContainerInfo::from(container_data);
+            let container_info = IdxContainerInfo::from(container_data, builder.calculate_crc32);
 
             let index = CacheIndex::from(i as u8, 1000000, file, container_info);
             indices.insert(i as u8, index);
@@ -109,6 +186,14 @@ impl Cache {
             }
         }
     }
+
+    pub fn clear_raw_data(&mut self){
+        for (_,index) in self.indices.iter_mut() {
+            for (_,c) in index.container_info.containers.iter_mut() {
+                c.clear_filedata();
+            }
+        }
+    } 
 }
 
 pub struct CacheIndex {
@@ -249,10 +334,14 @@ impl IdxContainerInfo {
         Self::default()
     }
 
-    pub fn from(packed_data: Vec<u8>) -> Self {
-        let mut crc_hasher = crc32fast::Hasher::new();
-        crc_hasher.update(&packed_data);
-        let crc = crc_hasher.finalize();
+    pub fn from(packed_data: Vec<u8>, gencrc: bool) -> Self {
+        let mut crc = 0;
+
+        if gencrc {
+            let mut crc_hasher = crc32fast::Hasher::new();
+            crc_hasher.update(&packed_data);
+            crc = crc_hasher.finalize();
+        }
 
 
         let mut data = match decompress_container_data(packed_data) {
@@ -385,6 +474,12 @@ pub struct IdxContainer {
 impl IdxContainer {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    pub fn clear_filedata(&mut self) {
+        for (_, f) in self.file_containers.iter_mut() {
+            f.data = Vec::new()
+        }
     }
 }
 

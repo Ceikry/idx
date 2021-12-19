@@ -6,7 +6,7 @@ use idx::*;
 use idx::util::*;
 
 lazy_static! {
-    pub static ref CACHE: Arc<Mutex<Cache>> = Arc::from(Mutex::from(Cache::from_path("test_cache").unwrap()));
+    pub static ref CACHE: Arc<Mutex<Cache>> = CacheBuilder::new().with_path("test_cache").build();
 }
 
 #[test]

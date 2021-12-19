@@ -125,6 +125,7 @@ impl <T: DefParser> DefProvider<T> {
 
         return self.def_cache.get(&id).unwrap();
     }
+
 }
 
 /**
@@ -135,11 +136,13 @@ impl <T: DefParser> DefProvider<T> {
   The index is type [`usize`], and the archive and file ID can either be a u32 reference (&[`u32`]) or a String reference (&[`String`]).
   
   ```no_run
-  use std::{sync::{Arc, Mutex}};
   use idx::util::FileProvider;
-  use idx::Cache;
+  use idx::util::CacheBuilder;
 
-  let cache = Arc::from(Mutex::from(Cache::from_path("test_cache").unwrap()));
+  let cache = CacheBuilder::new()
+                .with_path("test_cache")
+                .build();
+                
   let mut data_provider = FileProvider::from(&cache);
   
   data_provider.index(19).archive(&6);
@@ -153,7 +156,7 @@ pub struct FileProvider {
     index: u32,
     archive: u32,
     data_file: Arc<Mutex<BufReader<File>>>,
-    keys: Vec<i64>
+    keys: Vec<i64>,
 }
 
 impl FileProvider {
@@ -227,7 +230,7 @@ impl FileProvider {
         } else {
             self.load_requested_container_files();
 
-            match self.cache.lock() {
+            let data = match self.cache.lock() {
                 Ok(mut n) => match n.index(self.index as usize) {
                     Some(s) => match s.container_info.containers.get(&self.archive) {
                         Some(c) => match c.file_containers.get(&file_id) {
@@ -246,7 +249,9 @@ impl FileProvider {
                 Err(_) => {
                     panic!("Unable to lock cache!");
                 }
-            }
+            };
+
+            data
         }
     }
 
@@ -466,4 +471,49 @@ pub(crate) fn decompress_container_data(packed_data: Vec<u8>) -> Option<Vec<u8>>
             }
         }
     }
+}
+
+pub struct CacheBuilder {
+    pub cache_path: String,
+    pub base_file_name: String,
+    pub calculate_crc32: bool
+}
+
+impl Default for CacheBuilder {
+    fn default() -> Self {
+        Self {
+            cache_path: String::new(),
+            base_file_name: String::from("main_file_cache"),
+            calculate_crc32: true
+        }
+    }
+}
+
+impl CacheBuilder {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Sets the path to the cache folder. Note: this must be a path to a **folder**, not a file.
+    pub fn with_path(mut self, path: &str) -> Self {
+        self.cache_path = String::from(path);
+        self
+    }
+
+    /// Sets the base name for cache files. Default is "main_file_cache"
+    pub fn with_base_filename(mut self, filename: &str) -> Self {
+        self.base_file_name = String::from(filename);
+        self
+    }
+
+    /// Decides whether or not to calculate crc sums for archives. Defaults to true.
+    pub fn calculate_crc32(mut self, calculate: bool) -> Self {
+        self.calculate_crc32 = calculate;
+        self
+    }
+
+    pub fn build(self) -> std::sync::Arc<std::sync::Mutex<Cache>> {
+        let cache = Cache::with(self).unwrap();
+        Arc::from(Mutex::from(cache))
+    } 
 }
