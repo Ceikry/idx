@@ -52,7 +52,7 @@ For more information on `FileProvider` and `DefProvider` check the documentation
 
 ### Benchmarks
 IDX is very fast for what it has to do. Some of the speed obviously depends on whether you are using an SSD or HDD, but generally speaking, the speeds are substantial. 
-Due to benchmarking thanks to [Criterion](https://crates.io/crates/criterion), I am able to provide the below graphs benchmarking reading random files from Index 19.
+Due to benchmarking thanks to [Criterion](https://crates.io/crates/criterion), I am able to provide the below graphs benchmarking reading random files from random archives in Index 19.
 
-![image](https://user-images.githubusercontent.com/61421472/145699122-89e17801-0d35-4b81-97d6-30507c433aeb.png)
+![image](https://user-images.githubusercontent.com/61421472/146659019-6a1aae4f-376e-4dfb-8856-79810a5cf74b.png)
 
